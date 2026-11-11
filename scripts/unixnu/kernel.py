@@ -93,14 +93,26 @@ def linux_env(ctx):
     """
     toolchain = Path(os.environ.get('UNIXNU_TOOLCHAIN', '/opt/unixnu-linux'))
     clt, xctoolchain = toolchain / 'CommandLineTools/usr', toolchain / 'XcodeDefault.xctoolchain/usr'
+    xcrun = clt / 'bin/xcrun'
+    if not xcrun.exists():
+        xcrun = Path('/usr/bin/xcrun')
     for path in (toolchain / 'llvm/bin/clang', clt / 'bin/ld', clt / 'bin/xnu-host-cc', clt / 'libexec/migcom',
-                 xctoolchain / 'bin/iig', Path('/usr/bin/xcrun'), toolchain / 'bin/lzfse'):
+                 xctoolchain / 'bin/iig', xcrun, toolchain / 'bin/lzfse'):
         if not path.exists():
             raise Error(f'{path} missing; run "sudo scripts/linux/setup-toolchain.py {toolchain}"')
     fakeroot = ctx.tree / '.cache/fakeroot'
     return {'PATH': os.pathsep.join([str(clt / 'bin'), str(toolchain / 'bin'), os.environ.get('PATH', '')]),
             'LC_ALL': 'C', 'CLT_PREFIX': str(clt), 'XCTOOLCHAIN_PREFIX': str(xctoolchain),
             'XNU_TOOLCHAIN_BIN': f'{clt / "bin"} {xctoolchain / "bin"}',
+            # makedefs resolves these through /usr/bin/xcrun, which only exists
+            # on a root install; exporting them skips that lookup (origin is
+            # "environment", so the "origin undefined" branches never run).
+            'HOST_FLEX': str(clt / 'bin/flex'), 'HOST_BISON': str(clt / 'bin/bison'),
+            'HOST_GM4': str(clt / 'bin/gm4'),
+            'HOST_CODESIGN': str(clt / 'bin/codesign'),
+            'HOST_CODESIGN_ALLOCATE': str(clt / 'bin/codesign_allocate'),
+            'IIG': str(xctoolchain / 'bin/iig'),
+            'MIG': str(clt / 'bin/mig'), 'MIGCOM': str(clt / 'libexec/migcom'),
             'UNIXNU_SDKROOT': str(fakeroot), 'UNIXNU_SDK_VERSION': '17.0',
             'UNIXNU_PLATFORM_PATH': str(fakeroot / 'Platforms/iPhoneOS.platform'),
             'CROSS_CLANG': str(toolchain / 'llvm/bin/clang'), 'DARWIN_TRIPLE': 'arm64-apple-ios17.0',
