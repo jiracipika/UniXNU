@@ -113,6 +113,22 @@ def linux_env(ctx):
             'HOST_CODESIGN_ALLOCATE': str(clt / 'bin/codesign_allocate'),
             'IIG': str(xctoolchain / 'bin/iig'),
             'MIG': str(clt / 'bin/mig'), 'MIGCOM': str(clt / 'libexec/migcom'),
+            # Every remaining makedefs tool lookup goes through
+            # /usr/bin/xcrun, which a root install provides as a shim and a
+            # user-prefix install cannot. Without these exports the
+            # $(shell) calls return empty and the UNIFDEF-less header
+            # recipes hand -UXNU_PLATFORM_* to /bin/sh as the command word
+            # (make eats the leading "-" as its ignore-errors prefix).
+            'SDKROOT_RESOLVED': str(fakeroot), 'HOST_SDKROOT_RESOLVED': str(fakeroot),
+            'SDKVERSION': '17.0',
+            'CC': str(clt / 'bin/clang'), 'CXX': str(clt / 'bin/clang++'),
+            'STRIP': str(clt / 'bin/strip'), 'LIPO': str(clt / 'bin/lipo'),
+            'LIBTOOL': str(clt / 'bin/libtool'), 'OTOOL': str(clt / 'bin/otool'),
+            'NM': str(clt / 'bin/nm'), 'NMEDIT': str(clt / 'bin/nmedit'),
+            'CTFINSERT': str(clt / 'bin/ctf_insert'),
+            'UNIFDEF': tool('unifdef', 'run sudo scripts/linux/setup-toolchain.py'),
+            'GIT': tool('git', 'install git'),
+            'PYTHON': tool('python3', 'install python3'),
             'UNIXNU_SDKROOT': str(fakeroot), 'UNIXNU_SDK_VERSION': '17.0',
             'UNIXNU_PLATFORM_PATH': str(fakeroot / 'Platforms/iPhoneOS.platform'),
             'CROSS_CLANG': str(toolchain / 'llvm/bin/clang'), 'DARWIN_TRIPLE': 'arm64-apple-ios17.0',

@@ -9,6 +9,8 @@
 Each rewrite checks whether it is still needed, so both modes can run on every build.
 """
 from pathlib import Path
+import os
+import re
 import shutil
 import subprocess
 import sys
@@ -51,6 +53,31 @@ def info(message):
 
 
 def rewrite_sources():
+    # MakeInc.cmd hard-codes PLUTIL = /usr/bin/plutil, which exists only on a
+    # root install (setup-toolchain.py's USR_BIN_SHIMS). A user-prefix install
+    # has the shim in the Command Line Tools' usr/bin instead, and a plain
+    # file assignment beats the environment, so the tree itself must point at
+    # it.
+    cmd = XNU / 'makedefs/MakeInc.cmd'
+    text = cmd.read_text()
+    plutil = os.environ.get('CLT_PREFIX', '/Library/Developer/CommandLineTools/usr') + '/bin/plutil'
+    match = re.search(r'^PLUTIL = \S+$', text, re.MULTILINE)
+    if match and match.group(0) != f'PLUTIL = {plutil}':
+        cmd.write_text(text[:match.start()] + f'PLUTIL = {plutil}' + text[match.end():])
+        info(f'patched makedefs/MakeInc.cmd: PLUTIL = {plutil}')
+
+    # SETUP/config/doconf runs `#!/bin/csh -f`, which no Linux ships; exec()
+    # of the script then fails with ENOENT and every conf/Makefile dies with
+    # "doconf: No such file or directory". Re-point the shebang at tcsh.
+    doconf = XNU / 'SETUP/config/doconf'
+    text = doconf.read_text()
+    if text.startswith('#!/bin/csh'):
+        csh = shutil.which('tcsh') or shutil.which('csh')
+        if not csh:
+            sys.exit('SETUP/config/doconf needs tcsh on PATH')
+        doconf.write_text(f'#!{csh} -f\n' + text.split('\n', 1)[1])
+        info(f'patched SETUP/config/doconf: interpreter {csh}')
+
     # bsd/kern/makesyscalls.sh writes `\(sy_call_t *\)` inside an awk string. BSD awk and gawk drop the unknown
     # escape; Debian's default mawk keeps the backslash, and init_sysent.c does not compile. The escape is bogus
     # either way: remove it, and any generated file that carries it.
